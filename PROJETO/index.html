@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Endless Runner</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Constants for colors and other settings
+        var Colors = {
+            roadColor: 0x999999,
+            obstacleColor: 0xff0000,
+            characterColor: 0x00ff00, // green color for the character
+            ballColor: 0x8B4513 // brown color for the balls
+        };
+
+        // Make a new world when the page is loaded.
+        window.addEventListener('load', function(){
+            new World();
+        });
+
+        // The World class
+        function World() {
+            var scene, camera, renderer, road, obstacle, character, balls;
+
+            // Initialize the world
+            init();
+
+            // Function to initialize the world
+            function init() {
+                // Initialize the renderer
+                renderer = new THREE.WebGLRenderer({
+                    alpha: true,
+                    antialias: true
+                });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+                document.body.appendChild(renderer.domElement);
+
+                // Initialize the scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0xB7CEEB);
+
+                // Initialize the camera
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+                camera.position.set(0, 500, -1000);
+                camera.lookAt(0, 50, 0);
+
+                // Add a road
+                road = createRoad();
+                scene.add(road);
+
+                // Add an obstacle
+                obstacle = createObstacle();
+                scene.add(obstacle);
+
+                // Add a character
+                character = new Character();
+                scene.add(character.mesh);
+
+                // Add floating balls
+                balls = createBalls(50); // Add 50 floating balls
+                scene.add(balls);
+
+                // Start the rendering loop
+                loop();
+            }
+
+            // Function to create a road
+            function createRoad() {
+                var roadLength = 20000; // Length of the road
+                var geometry = new THREE.PlaneGeometry(1000, roadLength, 1, 1);
+                var material = new THREE.MeshBasicMaterial({ color: Colors.roadColor });
+                var road = new THREE.Mesh(geometry, material);
+                road.rotation.x = -Math.PI / 2;
+
+                // Duplicate the road and position it after the original one
+                var roadDuplicate = road.clone();
+                roadDuplicate.position.z = roadLength; // Position the duplicate after the original road
+
+                // Group the original road and its duplicate
+                var roadGroup = new THREE.Group();
+                roadGroup.add(road);
+                roadGroup.add(roadDuplicate);
+
+                return roadGroup;
+            }
+
+            // Function to create an obstacle
+            function createObstacle() {
+                var geometry = new THREE.BoxGeometry(150, 150, 200);
+                var material = new THREE.MeshBasicMaterial({ color: Colors.obstacleColor });
+                var obstacle = new THREE.Mesh(geometry, material);
+                // Position obstacle on the road
+                obstacle.position.x = Math.random() * 400 - 200; // Random position within road width
+                obstacle.position.y = 25; // Half of the obstacle's height
+                obstacle.position.z = 10000; // Position the obstacle behind the camera
+                return obstacle;
+            }
+
+            // Function to create floating balls
+            function createBalls(count) {
+                var group = new THREE.Group();
+                var geometry = new THREE.SphereGeometry(25, 32, 32);
+                var material = new THREE.MeshBasicMaterial({ color: Colors.ballColor });
+                for (var i = 0; i < count; i++) {
+                    var ball = new THREE.Mesh(geometry, material);
+                    ball.position.x = Math.random() * 800 - 400; // Random x position within the scene width
+                    ball.position.y = Math.random() * 800 + 400; // Random y position above the road
+                    ball.position.z = Math.random() * 800 - 400; // Random z position within the scene depth
+                    group.add(ball);
+                }
+                return group;
+            }
+
+            // Character class
+            function Character() {
+                var geometry = new THREE.CylinderGeometry(50, 50, 200, 32);
+                var material = new THREE.MeshBasicMaterial({ color: Colors.characterColor });
+                this.mesh = new THREE.Mesh(geometry, material);
+                this.mesh.position.y = 100; // Adjust character's position
+                this.speed = 10; // Speed of character movement
+
+                // Function to move character left
+                this.moveLeft = function() {
+                    if (this.mesh.position.x < 200) { // Adjust the condition to check if character is within the right boundary
+                        this.mesh.position.x += this.speed; // Increment x position to move left
+                    }
+                };
+
+                // Function to move character right
+                this.moveRight = function() {
+                    if (this.mesh.position.x > -200) { // Adjust the condition to check if character is within the left boundary
+                        this.mesh.position.x -= this.speed; // Decrement x position to move right
+                    }
+                };
+                
+                // Function to make character jump
+                this.jump = function() {
+                    if (this.mesh.position.y == 100) { // Allow jumping only when character is on the ground
+                        this.mesh.position.y += 300; // Jump height
+                        setTimeout(() => {
+                            this.mesh.position.y -= 300; // Return to ground after jump
+                        }, 500); // Jump duration
+                    }
+                };
+            }
+
+            // The main rendering loop
+            function loop() {
+                // Animate the road's position along the z-axis
+                road.position.z -= 10; // Adjust the speed of the road
+
+                // Move the balls
+                balls.children.forEach(function(ball) {
+                    ball.position.z -= 5; // Move balls towards the camera
+                    if (ball.position.z < -1000) {
+                        ball.position.z = 1000; // Reset position when it reaches the end
+                    }
+                });
+
+                // Reset the road's position when it reaches the end
+                if (road.position.z < -1000) {
+                    road.position.z = 1000;
+                }
+
+                // Move the obstacle along with the road
+                obstacle.position.z -= 100; // Adjust the speed of the obstacle
+
+                // Reset the obstacle's position when it reaches the end
+                if (obstacle.position.z < -1000) {
+                    obstacle.position.z = 10000;
+                    // Randomize obstacle position along the road
+                    obstacle.position.x = Math.random() * 400 - 200; // Random position within road width
+                }
+
+                renderer.render(scene, camera);
+                requestAnimationFrame(loop);
+            }
+
+            // Event listeners for character movement controls
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'ArrowLeft') {
+                    character.moveLeft();
+                } else if (event.key === 'ArrowRight') {
+                    character.moveRight();
+                } else if (event.key === 'ArrowUp') {
+                    character.jump();
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
+
