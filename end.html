@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Endless runner - End Page</title>
+</head>
+<body>
+    <h1>Game Over</h1>
+    <div id="endTime"></div>
+    <button onclick="restartGame()">Try Again</button>
+
+    <script>
+        var endTimeElement = document.getElementById('endTime');
+        var elapsedTime = sessionStorage.getItem('elapsedTime');
+        endTimeElement.textContent = 'Time: ' + elapsedTime + 's';
+
+        function restartGame() {
+            window.location.href = 'game.html'; // Redirect to game.html to restart the game
+        }
+    </script>
+</body>
+</html>
