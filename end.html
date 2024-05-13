@@ -54,11 +54,22 @@
             background: white;
             color: black;
         }
+        .time{
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            padding: 15px 40px;
+            word-spacing: normal;
+            letter-spacing: 5px;
+            color: white;
+        }
     </style>
 </head>
 <body>
-    <h1>Game Over</h1>
-    <div id="endTime"></div>
+    <div class ="time" id="endTime"></div>
     <div class="button-wrapper">
         <button class="button" onclick="restartGame()">Try Again</button>
     </div>

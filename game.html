@@ -28,6 +28,10 @@
         var startTime;
         var timerElement = document.getElementById('timer');
         var character; // Define character object globally
+        var lastPowerUpSpawnTime = Date.now(); // Initialize last power-up spawn time
+        var powerUpSpawnInterval = 10000;
+        var powerUpCollected = false; // Flag to indicate whether the power-up is collected
+        var shotTimeout;
 
         var Colors = {
             roadColor: 0x999999,
@@ -56,7 +60,7 @@
 
         function World() {
             'use strict';
-            var scene, camera, renderer, road, obstacles = [];
+            var scene, camera, renderer, road, obstacles = [], powerUps = [], shots = [];
             var container, aspectRatio,
                 HEIGHT, WIDTH, fieldOfView,
                 nearPlane, farPlane,
@@ -117,7 +121,7 @@
 
                 const numObstacles = Math.floor(Math.random() * 5) + 1; // Random number between 1 and 5
                 for (let i = 0; i < numObstacles; i++) {
-                    createObstacle(scene);
+                    createObject(scene, obstacles);
                 }
 
                 window.addEventListener('resize', onWindowResize, false);
@@ -125,7 +129,7 @@
             }
 
 
-            function createObstacle(scene) {
+            function createObject(scene, objectList) {
                 var loader = new THREE.GLTFLoader();
                 loader.load('asteroid/scene.gltf', function (gltf) {
                     var obstacle = gltf.scene;
@@ -141,6 +145,40 @@
                 });
             }
 
+            function createPowerUp(scene, powerUps) {
+                var loader = new THREE.GLTFLoader();
+                loader.load('gold_star/scene.gltf', function (gltf) {
+                    var powerUp = gltf.scene;
+                    powerUp.scale.set(5, 5, 5);
+                    powerUp.position.x = Math.random() * 900 - 200;
+                    powerUp.position.y = 25;
+                    powerUp.position.z = 1000;
+                    scene.add(powerUp);
+                    powerUps.push(powerUp);
+                    if (powerUps.length > 2) {
+                        scene.remove(powerUps.shift());
+                    }
+
+                    // Set powerUpCollected to true when power-up is collected
+                    powerUpCollected = true;
+
+                    // Set a timeout to reset powerUpCollected after a certain duration
+                    shotTimeout = setTimeout(function() {
+                        powerUpCollected = false;
+                    }, 5000); // Adjust the duration as needed (5000 milliseconds = 5 seconds)
+                });
+            }
+
+            function createShot(scene, shots, position) {
+                var loader = new THREE.GLTFLoader();
+                loader.load('star_wars_shot/scene.gltf', function (gltf) {
+                    var shot = gltf.scene;
+                    shot.scale.set(2, 2, 2);
+                    shot.position.copy(position);
+                    scene.add(shot);
+                    shots.push({ object: shot, velocity: new THREE.Vector3(0, 0, 20) });
+                });
+            }
 
             const moveLeft = () => {
                 if (character && character.position.x < 900) {//mudar até onde a nave vai
@@ -164,8 +202,6 @@
             };
 
             document.addEventListener('keydown', function (event) {
-                console.log('Key pressed:', event.key);
-                console.log('Character:', character);
                 if (gameStarted) {
                     if (event.key === 'ArrowLeft') {
                         moveLeft();
@@ -173,6 +209,10 @@
                         moveRight();
                     } else if (event.key === 'ArrowUp') {
                         jump();
+                    } else if (event.key === ' ' && powerUpCollected) { // Spacebar for shooting only when power-up is collected
+                        if (character) {
+                            createShot(scene, shots, character.position.clone());
+                        }
                     }
                 }   
             });
@@ -207,6 +247,12 @@
                 starField.rotation.x += 0.001;
                 starField.rotation.y += 0.001;
 
+                var currentTime = Date.now();
+                if (currentTime - lastPowerUpSpawnTime >= powerUpSpawnInterval && powerUps.length === 0) {
+                    createPowerUp(scene, powerUps);
+                    lastPowerUpSpawnTime = currentTime; // Update last spawn time
+                }
+
                 for (var i = 0; i < obstacles.length; i++) {
                     var obstacle = obstacles[i];
                     if (obstacle.position) {
@@ -215,10 +261,66 @@
                             obstacle.position.z = 1050;
                             obstacle.position.x = Math.random() * 400 - 200;
                         }
-                        if (character){
-                            if (character.position.distanceTo(obstacle.position) < 350) { // Adjust 100 to the appropriate collision distance
-                                endGame();
-                                return; // Stop the loop if the game is over
+                        if (character) {
+                            var obstacleHit = false; // Flag to indicate if the obstacle is hit by a shot
+                            for (var k = 0; k < shots.length; k++) {
+                                var shot = shots[k];
+                                if (obstacle.position.distanceTo(shot.object.position) < 200) {
+                                    scene.remove(shot.object);
+                                    shots.splice(k, 1);
+                                    scene.remove(obstacle);
+                                    obstacles.splice(i, 1);
+                                    obstacleHit = true;
+                                    break; // Break out of the inner loop to avoid errors when modifying the array while iterating
+                                }
+                            }
+                            if (!obstacleHit) {
+                                if (character.position.distanceTo(obstacle.position) < 350) {
+                                    if (obstacle.isPowerUp) {
+                                        continue; // Example: Increase speed by 5 when power-up is collected    
+                                    } else {
+                                        endGame(); // Game ends if collided with an obstacle
+                                    }
+                                    scene.remove(obstacle);
+                                    obstacles.splice(i, 1);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (var j = 0; j < powerUps.length; j++) {
+                    var powerUp = powerUps[j];
+                    if (powerUp.position) {
+                        powerUp.position.z -= 10;
+                        if (powerUp.position.z < -1000) {
+                            powerUp.position.z = 1050;
+                            powerUp.position.x = Math.random() * 400 - 200;
+                        }
+                        if (character && character.position.distanceTo(powerUp.position) < 350) { 
+                            // Define behavior of power-up, e.g., increase speed
+                            // For example, you can add functionality here to increase the player's score or abilities
+                            scene.remove(powerUp);
+                            powerUps.splice(j, 1);
+                        }
+                    }
+                }
+
+                for (var k = 0; k < shots.length; k++) {
+                    var shot = shots[k];
+                    shot.object.position.add(shot.velocity);
+                    if (shot.object.position.z < -1000) {
+                        scene.remove(shot.object);
+                        shots.splice(k, 1);
+                    } else {
+                        for (var m = 0; m < obstacles.length; m++) {
+                            var obstacle = obstacles[m];
+                            if (obstacle.position.distanceTo(shot.object.position) < 200) {
+                                scene.remove(shot.object);
+                                shots.splice(k, 1);
+                                scene.remove(obstacle);
+                                obstacles.splice(m, 1);
+                                break; // Break out of the inner loop to avoid errors when modifying the array while iterating
                             }
                         }
                     }
@@ -238,6 +340,3 @@
     </script>
 </body>
 </html>
-
-
-
