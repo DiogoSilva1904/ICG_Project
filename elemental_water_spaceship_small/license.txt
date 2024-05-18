@@ -1,0 +1,11 @@
+Model Information:
+* title:	Elemental Water Spaceship Small
+* source:	https://sketchfab.com/3d-models/elemental-water-spaceship-small-25528d3cbabe495a9a2af9bb7b3163c2
+* author:	Lucas Coutinho (https://sketchfab.com/lucasctnh)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Elemental Water Spaceship Small" (https://sketchfab.com/3d-models/elemental-water-spaceship-small-25528d3cbabe495a9a2af9bb7b3163c2) by Lucas Coutinho (https://sketchfab.com/lucasctnh) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

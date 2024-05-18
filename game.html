@@ -19,10 +19,37 @@
             color: white;
             text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
         }
+        #powerup-bar {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 20px;
+            background-color: #ccc;
+            border: 1px solid #999;
+        }
+        #powerup-progress {
+            height: 100%;
+            background-color: lightblue;
+            transition: width 0.5s ease;
+        }
+        #shield-text {
+            position: absolute;
+            bottom: 50px;
+            right: 20px;
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            color: white;
+            display: none; /* Initially hidden */
+        }
     </style>
 </head>
 <body class="body" style="overflow: hidden;">
     <div id="timer"></div>
+    <div id="powerup-bar">
+        <div id="powerup-progress"></div>
+    </div>
+    <div id="shield-text">Shield Available</div>
     <script>
         var gameStarted = false;
         var startTime;
@@ -32,6 +59,12 @@
         var powerUpSpawnInterval = 10000;
         var powerUpCollected = false; // Flag to indicate whether the power-up is collected
         var shotTimeout;
+        var alien;
+        var astronaut;
+        var satelite;
+        var lastSpeedIncrease = 0;
+        var obstacleSpeed=10 ; // Speed of the obstacles
+        var activateShields = false;
 
         var Colors = {
             roadColor: 0x999999,
@@ -40,7 +73,7 @@
             ballColor: 0x8B4513
         };
 
-        window.addEventListener('load', function(){
+        window.addEventListener('load', function() {
             startGame();
         });
 
@@ -60,18 +93,20 @@
 
         function World() {
             'use strict';
-            var scene, camera, renderer, road, obstacles = [], powerUps = [], shots = [];
+            var scene, camera, renderer, road, obstacles = [],
+                powerUps = [];
             var container, aspectRatio,
                 HEIGHT, WIDTH, fieldOfView,
                 nearPlane, farPlane,
                 mouseX, mouseY, windowHalfX,
                 windowHalfY, geometry,
-                starStuff, materialOptions,starField;
+                starStuff, materialOptions, starField;
+            var collectedPowerUps = 0;      
 
-            this.speed = 10;    
+
+            this.speed = 10;
 
             init();
-
 
             function init() {
                 container = document.createElement('div');
@@ -101,14 +136,38 @@
                 scene.add(ambientLight);
 
                 character = null;
+                satelite = null;
+                alien = null;
+                astronaut = null;
 
                 var loader = new THREE.GLTFLoader();
-                loader.load('nave_espacial/scene.gltf', function (gltf) {
+                loader.load('elemental_water_spaceship_small/scene.gltf', function(gltf) {
                     character = gltf.scene;
                     character.scale.set(10, 10, 10);
                     character.position.x = Math.random() * 1000 - 200;
                     character.position.y = 100;
+                    character.position.z = -500;
                     scene.add(character);
+                });
+
+
+                loader.load('alien_ship_low_poly/scene.gltf',function(gltf){
+                    alien = gltf.scene;
+                    alien.scale.set(100, 100, 100);
+                    alien.position.z = 0;
+                    alien.position.x = 1400;
+                    alien.position.y = 200;
+                    scene.add(alien);
+                });
+
+                loader.load('star_wars_battlefront_-_tie_fighter/scene.gltf', function(gltf) {
+                    astronaut = gltf.scene;
+                    astronaut.scale.set(30, 30, 30);
+                    astronaut.position.z = 500;
+                    astronaut.position.x = 3000;
+                    astronaut.position.y = 500;
+                    astronaut.rotation.y = Math.PI / 2;
+                    scene.add(astronaut);
                 });
 
                 renderer = new THREE.WebGLRenderer();
@@ -119,7 +178,43 @@
 
                 createStars();
 
-                const numObstacles = Math.floor(Math.random() * 5) + 1; // Random number between 1 and 5
+                const ROOM_WIDTH = WIDTH; // Example room width
+                const ROOM_HEIGHT = HEIGHT; // Example room height
+                const ROOM_DEPTH = 1000; // Example room depth
+
+                const skyboxGeo = new THREE.BoxGeometry(ROOM_WIDTH * 2 + 10, ROOM_HEIGHT * 2 + 10, ROOM_DEPTH * 2 + 10);
+
+                const materialArray = [
+                    new THREE.MeshBasicMaterial({
+                        map: new THREE.TextureLoader().load("purplenebula/purplenebula_ft.png"),
+                        side: THREE.DoubleSide,
+                    }),
+                    new THREE.MeshBasicMaterial({
+                        map: new THREE.TextureLoader().load("purplenebula/purplenebula_bk.png"),
+                        side: THREE.DoubleSide,
+                    }),
+                    new THREE.MeshBasicMaterial({
+                        map: new THREE.TextureLoader().load("purplenebula/purplenebula_up.png"),
+                        side: THREE.DoubleSide,
+                    }),
+                    new THREE.MeshBasicMaterial({
+                        map: new THREE.TextureLoader().load("purplenebula/purplenebula_dn.png"),
+                        side: THREE.DoubleSide,
+                    }),
+                    new THREE.MeshBasicMaterial({
+                        map: new THREE.TextureLoader().load("purplenebula/purplenebula_rt.png"),
+                        side: THREE.DoubleSide,
+                    }),
+                    new THREE.MeshBasicMaterial({
+                        map: new THREE.TextureLoader().load("purplenebula/purplenebula_lf.png"),
+                        side: THREE.DoubleSide,
+                    }),
+                ];
+
+                const skybox = new THREE.Mesh(skyboxGeo, materialArray);
+                scene.add(skybox);
+
+                const numObstacles = 4; // Fixed number of obstacles
                 for (let i = 0; i < numObstacles; i++) {
                     createObject(scene, obstacles);
                 }
@@ -128,110 +223,239 @@
                 loop();
             }
 
+            var spawnPositions = [
+                new THREE.Vector3(900, 100, 1000),  // Position 1
+                new THREE.Vector3(300, 100, 1500),  // Position 3
+                new THREE.Vector3(400, 100, 1200),  // Position 4
+                new THREE.Vector3(500, 100, 1000),  // Position 6
+                new THREE.Vector3(600, 100, 1500),  // Position 7
+                new THREE.Vector3(700, 100, 1900),  // Position 8
+                new THREE.Vector3(800, 100, 1500),  // Position 9
+                new THREE.Vector3(200, 100, 1000),  // Position 10
+                new THREE.Vector3(0, 100, 1500),  // Position 11
+                new THREE.Vector3(-100, 100, 1000),  // Position 20
+                new THREE.Vector3(-200, 100, 1500),  // Position 21
+                new THREE.Vector3(-300, 100, 1900),  // Position 22
+                new THREE.Vector3(-400, 100, 1500),  // Position 23
+                new THREE.Vector3(-500, 100, 1000),  // Position 24
+                new THREE.Vector3(-600, 100, 1500),  // Position 25
+                new THREE.Vector3(-700, 100, 1900),  // Position 26
+                new THREE.Vector3(-800, 100, 1500),  // Position 27
+                new THREE.Vector3(-900, 100, 1000),  // Position 28
+                new THREE.Vector3(-1000, 100, 1500),  // Position 29
+                new THREE.Vector3(-1100, 100, 1900),  // Position 30
+            ];
+
+            var chosenPositions = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,0,0,0,0,0,0,0,0];
+            var nextSpawnPositionIndex = 0;
 
             function createObject(scene, objectList) {
                 var loader = new THREE.GLTFLoader();
-                loader.load('asteroid/scene.gltf', function (gltf) {
+                var modelPaths = ['asteroid/scene.gltf', 'space_raw_material/scene.gltf']; // Array of model paths
+
+                // Choose a random model path
+                var randomModelIndex = Math.floor(Math.random() * modelPaths.length);
+                var chosenModelPath = modelPaths[randomModelIndex];
+
+                loader.load(chosenModelPath, function (gltf) {
                     var obstacle = gltf.scene;
-                    obstacle.scale.set(100, 100, 100);
-                    obstacle.position.x = Math.random() * 900 - 200;
-                    obstacle.position.y = 25;
-                    obstacle.position.z = 1000;
+                    if(chosenModelPath === 'space_raw_material/scene.gltf'){
+                        obstacle.scale.set(40, 40, 40);
+                    }
+                    else{
+                        obstacle.scale.set(100, 100, 100);
+                    }
+                    obstacle.scale.set(50, 50, 50);
+
+                    var chosenPositionIndex = null;
+
+                    // Create a random number in the range of 0 to 19
+                    var random = Math.floor(Math.random() * 19);
+
+                    // Find the next available position that hasn't been chosen before
+                    for (var i = 0; i < spawnPositions.length; i++) {
+                        var positionIndex = (nextSpawnPositionIndex + i) % spawnPositions.length;
+                        if (chosenPositions[positionIndex] === 0) {
+                            chosenPositionIndex = positionIndex;
+                            chosenPositions[positionIndex] = 1; // Mark the position as chosen
+                            nextSpawnPositionIndex = (positionIndex + 1) % spawnPositions.length; // Update next spawn position index
+                            break;
+                        }
+                    }
+
+                    // If all positions have been chosen, reset the chosen positions array
+                    if (chosenPositionIndex === null) {
+                        chosenPositions = Array(spawnPositions.length).fill(0);
+                        nextSpawnPositionIndex = 0;
+                        chosenPositionIndex = 0;
+                    }
+
+                    var chosenPosition = spawnPositions[chosenPositionIndex];
+                    obstacle.position.copy(chosenPosition);
                     scene.add(obstacle);
-                    obstacles.push(obstacle);
-                    if (obstacles.length > 4) {
-                        scene.remove(obstacles.shift());
+                    objectList.push(obstacle);
+
+                    // Remove excess obstacles
+                    if (objectList.length > spawnPositions.length) {
+                        var removedObstacle = objectList.shift();
+                        scene.remove(removedObstacle);
                     }
                 });
             }
 
+
             function createPowerUp(scene, powerUps) {
                 var loader = new THREE.GLTFLoader();
-                loader.load('gold_star/scene.gltf', function (gltf) {
+                loader.load('jerry_can/scene.gltf', function(gltf) {
                     var powerUp = gltf.scene;
                     powerUp.scale.set(5, 5, 5);
-                    powerUp.position.x = Math.random() * 900 - 200;
-                    powerUp.position.y = 25;
-                    powerUp.position.z = 1000;
+
+                    var chosenPositionIndex = null;
+
+                    var random = Math.floor(Math.random() * 19);
+
+                    for (var i = 0; i < spawnPositions.length; i++) {
+                        var positionIndex = (nextSpawnPositionIndex + i) % spawnPositions.length;
+                        if (chosenPositions[positionIndex] === 0) {
+                            chosenPositionIndex = positionIndex;
+                            chosenPositions[positionIndex] = 1; // Mark the position as chosen
+                            nextSpawnPositionIndex = (positionIndex + 1) % spawnPositions.length; // Update next spawn position index
+                            break;
+                        }
+                    }
+
+                    if (chosenPositionIndex === null) {
+                        chosenPositions = Array(spawnPositions.length).fill(0);
+                        nextSpawnPositionIndex = 0;
+                        chosenPositionIndex = 0;
+                    }
+
+
+                    var chosenPosition = spawnPositions[chosenPositionIndex];
+
+                    powerUp.position.copy(chosenPosition);
+                    //powerUp.position.y=-90;
                     scene.add(powerUp);
                     powerUps.push(powerUp);
                     if (powerUps.length > 2) {
                         scene.remove(powerUps.shift());
                     }
 
-                    // Set powerUpCollected to true when power-up is collected
-                    powerUpCollected = true;
-
-                    // Set a timeout to reset powerUpCollected after a certain duration
-                    shotTimeout = setTimeout(function() {
-                        powerUpCollected = false;
-                    }, 5000); // Adjust the duration as needed (5000 milliseconds = 5 seconds)
                 });
             }
 
-            function createShot(scene, shots, position) {
-                var loader = new THREE.GLTFLoader();
-                loader.load('star_wars_shot/scene.gltf', function (gltf) {
-                    var shot = gltf.scene;
-                    shot.scale.set(2, 2, 2);
-                    shot.position.copy(position);
-                    scene.add(shot);
-                    shots.push({ object: shot, velocity: new THREE.Vector3(0, 0, 20) });
-                });
+            function collectPowerUp() {
+                collectedPowerUps++; // Increment collected power-up count
+                if(collectedPowerUps <= 3){
+                    updatePowerUpBar(collectedPowerUps);
+                }    
             }
+
+            function updatePowerUpBar(collectedPowerUps) {
+                var progressBar = document.getElementById('powerup-progress');
+                var shieldText = document.getElementById('shield-text');
+                var progressPercentage = (collectedPowerUps / 3) * 100; // Calculate the progress percentage
+                progressBar.style.width = progressPercentage + '%'; // Update the progress bar's width
+
+                if (collectedPowerUps >= 3) {
+                    progressBar.style.backgroundColor = 'blue'; // Change the progress bar color
+                    shieldText.style.display = 'block'; // Display the "Shield Available" text
+                } else {
+                    progressBar.style.backgroundColor = 'blue'; // Reset the progress bar color
+                    shieldText.style.display = 'none'; // Hide the "Shield Available" text
+                }
+            }
+
 
             const moveLeft = () => {
-                if (character && character.position.x < 900) {//mudar até onde a nave vai
+                character.rotation.z = 0;
+                if (character && character.position.x < 800) { // Adjust the character's movement range as needed
                     character.position.x += this.speed;
+                    character.rotation.z -= 0.05; // Rotate the spaceship slightly to the left
                 }
+                
             };
 
             const moveRight = () => {
-                if (character && character.position.x > -900) {//mudar até onde a nave vai
+                character.rotation.z = 0;
+                if (character && character.position.x > -900) { // Adjust the character's movement range as needed
                     character.position.x -= this.speed;
+                    character.rotation.z += 0.05; // Rotate the spaceship slightly to the right
                 }
             };
 
-            const jump = () => {
-                if (character && character.position.y === 25) {
-                    character.position.y += 300;
-                    setTimeout(() => {
-                        character.position.y -= 300;
-                    }, 500);
-                }
-            };
+            function createShield() {
+                var shieldGeometry = new THREE.SphereGeometry(150, 32, 32); // Define shield geometry
+                var shieldMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: 0.5 }); // Define shield material
+                var shield = new THREE.Mesh(shieldGeometry, shieldMaterial); // Create shield mesh
+                shield.position.copy(character.position); // Position the shield around the character
+                scene.add(shield); // Add shield to the scene
 
-            document.addEventListener('keydown', function (event) {
+                // Update shield's position continuously to match the character's position
+                function updateShieldPosition() {
+                    shield.position.copy(character.position);
+                }
+
+                // Call updateShieldPosition continuously
+                function update() {
+                    updateShieldPosition();
+                    requestAnimationFrame(update);
+                }
+                update();
+
+                setTimeout(function() {
+                    activateShields= false;
+                    scene.remove(shield); // Remove shield after some time (e.g., 5 seconds)
+                }, 5000); // Adjust the duration of the shield as needed
+            }
+
+            function activateShield() {
+                console.log("Invincibility shield activated!");
+                updatePowerUpBar(0); // Reset power-up bar
+                collectedPowerUps = 0; // Reset collected power-ups
+                activateShields = true;
+                clearTimeout(shotTimeout);
+                createShield(); // Create the shield when activated
+                // Increase character speed while shield is active
+                this.speed = 100; // Increase speed by 50%
+                setTimeout(deactivateShield, 5000); // Deactivate shield after 5 seconds
+            }
+
+            function deactivateShield() {
+                console.log("Invincibility shield deactivated!");
+                var shieldText = document.getElementById('shield-text');
+                shieldText.style.display = 'none';
+                this.speed /= 1.5; // Reset character speed to its original value
+            }
+            
+            window.addEventListener('keydown', (event) => {
                 if (gameStarted) {
                     if (event.key === 'ArrowLeft') {
                         moveLeft();
                     } else if (event.key === 'ArrowRight') {
                         moveRight();
-                    } else if (event.key === 'ArrowUp') {
-                        jump();
-                    } else if (event.key === ' ' && powerUpCollected) { // Spacebar for shooting only when power-up is collected
-                        if (character) {
-                            createShot(scene, shots, character.position.clone());
+                    } else if (event.key === ' ') { 
+                        console.log('Space key pressed!');
+                        if (collectedPowerUps >= 1) { 
+                            activateShield();
                         }
                     }
-                }   
+                }
             });
 
-            function createStars(){
+            function createStars() {
                 var stars = new Array(0);
-                for ( var i = 0; i < 10000; i ++ ) {
-                    let x = THREE.Math.randFloatSpread( 2000 );
-                    let y = THREE.Math.randFloatSpread( 2000 );
-                    let z = THREE.Math.randFloatSpread( 2000 );
+                for (var i = 0; i < 10000; i++) {
+                    let x = THREE.Math.randFloatSpread(2000);
+                    let y = THREE.Math.randFloatSpread(2000);
+                    let z = THREE.Math.randFloatSpread(2000);
                     stars.push(x, y, z);
                 }
                 var starsGeometry = new THREE.BufferGeometry();
-                starsGeometry.setAttribute(
-                    "position", new THREE.Float32BufferAttribute(stars, 3)
-                );
-                var starsMaterial = new THREE.PointsMaterial( { color: 0x888888 } );
-                starField = new THREE.Points( starsGeometry, starsMaterial );
-                scene.add( starField );
+                starsGeometry.setAttribute("position", new THREE.Float32BufferAttribute(stars, 3));
+                var starsMaterial = new THREE.PointsMaterial({ color: 0x888888 });
+                starField = new THREE.Points(starsGeometry, starsMaterial);
+                scene.add(starField);
             }
 
             function onWindowResize() {
@@ -243,9 +467,36 @@
                 renderer.setSize(WIDTH, HEIGHT);
             }
 
+            function selectRandomIndex(spawnPositions, chosenPositions) {
+                let randomIndex = Math.floor(Math.random() * spawnPositions.length);
+
+                // Check if the chosen position is already taken
+                while (chosenPositions[randomIndex] !== 0) {
+                    randomIndex = Math.floor(Math.random() * spawnPositions.length);
+                }
+
+                return randomIndex;
+            }
+
             function loop() {
                 starField.rotation.x += 0.001;
                 starField.rotation.y += 0.001;
+                chosenPositions = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+                if (alien) {
+                    // Rotate the alien spaceship around its y-axis
+                    alien.rotation.y += 0.01; // You can adjust the rotation speed as needed
+                }
+
+                if (astronaut) {
+                    astronaut.position.x -= 10;
+                    astronaut.position.z += 1;
+                    astronaut.rotation.y += 0.0001;
+                    if (astronaut.position.x < -4000) {
+                        astronaut.position.x=3000
+                        astronaut.position.z=500
+                    }
+                }
+                 
 
                 var currentTime = Date.now();
                 if (currentTime - lastPowerUpSpawnTime >= powerUpSpawnInterval && powerUps.length === 0) {
@@ -253,37 +504,38 @@
                     lastPowerUpSpawnTime = currentTime; // Update last spawn time
                 }
 
+                if(currentTime - lastSpeedIncrease >= 10000){
+                    obstacleSpeed += 5;
+                    createObject(scene, obstacles);
+                    lastSpeedIncrease = currentTime;
+                }
+
                 for (var i = 0; i < obstacles.length; i++) {
                     var obstacle = obstacles[i];
                     if (obstacle.position) {
-                        obstacle.position.z -= 10;
+                        obstacle.position.z -= obstacleSpeed;
                         if (obstacle.position.z < -1000) {
-                            obstacle.position.z = 1050;
-                            obstacle.position.x = Math.random() * 400 - 200;
+                            obstacle.position.z = 2000;
+
+                            var index = selectRandomIndex(spawnPositions,chosenPositions)
+                            chosenPositions[index] = 1
+
+                            obstacle.position.x = spawnPositions[index].x
                         }
                         if (character) {
-                            var obstacleHit = false; // Flag to indicate if the obstacle is hit by a shot
-                            for (var k = 0; k < shots.length; k++) {
-                                var shot = shots[k];
-                                if (obstacle.position.distanceTo(shot.object.position) < 200) {
-                                    scene.remove(shot.object);
-                                    shots.splice(k, 1);
-                                    scene.remove(obstacle);
-                                    obstacles.splice(i, 1);
-                                    obstacleHit = true;
-                                    break; // Break out of the inner loop to avoid errors when modifying the array while iterating
-                                }
-                            }
-                            if (!obstacleHit) {
-                                if (character.position.distanceTo(obstacle.position) < 350) {
-                                    if (obstacle.isPowerUp) {
-                                        continue; // Example: Increase speed by 5 when power-up is collected    
-                                    } else {
+                            if (character.position.distanceTo(obstacle.position) < 50) {//change number here for hitbox of obstacles
+                                if (obstacle.isPowerUp) {
+                                    continue; // Example: Increase speed by 5 when power-up is collected    
+                                } else {
+                                    if(activateShields){
+                                        continue;
+                                    }
+                                    else{
                                         endGame(); // Game ends if collided with an obstacle
                                     }
-                                    scene.remove(obstacle);
-                                    obstacles.splice(i, 1);
                                 }
+                                scene.remove(obstacle);
+                                obstacles.splice(i, 1);
                             }
                         }
                     }
@@ -297,31 +549,12 @@
                             powerUp.position.z = 1050;
                             powerUp.position.x = Math.random() * 400 - 200;
                         }
-                        if (character && character.position.distanceTo(powerUp.position) < 350) { 
-                            // Define behavior of power-up, e.g., increase speed
-                            // For example, you can add functionality here to increase the player's score or abilities
+                        if (character && character.position.distanceTo(powerUp.position) < 350) { //change number here for hitbox of powerups
+                            collectPowerUp(); // Call function to handle power-up collection
+                            console.log('Power-up collected!');
+                            console.log('Power-ups collected: ' + collectedPowerUps);
                             scene.remove(powerUp);
                             powerUps.splice(j, 1);
-                        }
-                    }
-                }
-
-                for (var k = 0; k < shots.length; k++) {
-                    var shot = shots[k];
-                    shot.object.position.add(shot.velocity);
-                    if (shot.object.position.z < -1000) {
-                        scene.remove(shot.object);
-                        shots.splice(k, 1);
-                    } else {
-                        for (var m = 0; m < obstacles.length; m++) {
-                            var obstacle = obstacles[m];
-                            if (obstacle.position.distanceTo(shot.object.position) < 200) {
-                                scene.remove(shot.object);
-                                shots.splice(k, 1);
-                                scene.remove(obstacle);
-                                obstacles.splice(m, 1);
-                                break; // Break out of the inner loop to avoid errors when modifying the array while iterating
-                            }
                         }
                     }
                 }
@@ -336,7 +569,7 @@
                 requestAnimationFrame(loop);
             }
             loop();
-        };
+        }
     </script>
 </body>
 </html>
