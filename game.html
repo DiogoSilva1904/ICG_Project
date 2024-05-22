@@ -64,6 +64,7 @@
         var satelite;
         var lastSpeedIncrease = 0;
         var obstacleSpeed=10 ; // Speed of the obstacles
+        var powerUpSpeed=10;
         var activateShields = false;
 
         var Colors = {
@@ -101,7 +102,21 @@
                 mouseX, mouseY, windowHalfX,
                 windowHalfY, geometry,
                 starStuff, materialOptions, starField;
-            var collectedPowerUps = 0;      
+            var collectedPowerUps = 0;    
+            
+            function startMusic() {
+                const listener = new THREE.AudioListener();
+                camera.add(listener);
+
+                const audioLoader = new THREE.AudioLoader();
+                const backgroundMusic = new THREE.Audio(listener);
+                audioLoader.load('Destroyer Of Worlds.mp3', function(buffer) {
+                    backgroundMusic.setBuffer(buffer);
+                    backgroundMusic.setLoop(true);
+                    backgroundMusic.setVolume(0.1);
+                    backgroundMusic.play();
+                });
+            }
 
 
             this.speed = 10;
@@ -221,6 +236,18 @@
 
                 window.addEventListener('resize', onWindowResize, false);
                 loop();
+                const listener = new THREE.AudioListener();
+                camera.add(listener);
+
+                const audioLoader = new THREE.AudioLoader();
+                const backgroundMusic = new THREE.Audio(listener);
+                audioLoader.load('YouSeeBIGGIRLTT.mp3', function(buffer) {
+                    backgroundMusic.setBuffer(buffer);
+                    backgroundMusic.setLoop(true);
+                    backgroundMusic.setVolume(0.1);
+                    backgroundMusic.play();
+                });
+                startMusic();
             }
 
             var spawnPositions = [
@@ -309,6 +336,7 @@
                 loader.load('jerry_can/scene.gltf', function(gltf) {
                     var powerUp = gltf.scene;
                     powerUp.scale.set(5, 5, 5);
+
 
                     var chosenPositionIndex = null;
 
@@ -506,6 +534,8 @@
 
                 if(currentTime - lastSpeedIncrease >= 10000){
                     obstacleSpeed += 5;
+                    powerUpSpeed += 5;
+                    powerUp
                     createObject(scene, obstacles);
                     lastSpeedIncrease = currentTime;
                 }
@@ -525,9 +555,11 @@
                         if (character) {
                             if (character.position.distanceTo(obstacle.position) < 50) {//change number here for hitbox of obstacles
                                 if (obstacle.isPowerUp) {
-                                    continue; // Example: Increase speed by 5 when power-up is collected    
+                                    continue;
                                 } else {
                                     if(activateShields){
+                                        scene.remove(obstacle);
+                                        obstacles.splice(i, 1);
                                         continue;
                                     }
                                     else{
@@ -544,7 +576,7 @@
                 for (var j = 0; j < powerUps.length; j++) {
                     var powerUp = powerUps[j];
                     if (powerUp.position) {
-                        powerUp.position.z -= 10;
+                        powerUp.position.z -= powerUpSpeed;
                         if (powerUp.position.z < -1000) {
                             powerUp.position.z = 1050;
                             powerUp.position.x = Math.random() * 400 - 200;
