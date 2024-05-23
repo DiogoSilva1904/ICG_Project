@@ -56,7 +56,7 @@
         var timerElement = document.getElementById('timer');
         var character; // Define character object globally
         var lastPowerUpSpawnTime = Date.now(); // Initialize last power-up spawn time
-        var powerUpSpawnInterval = 10000;
+        var powerUpSpawnInterval = 15000;
         var powerUpCollected = false; // Flag to indicate whether the power-up is collected
         var shotTimeout;
         var alien;
@@ -81,6 +81,7 @@
         function startGame() {
             gameStarted = true;
             startTime = Date.now();
+            lastPowerUpSpawnTime = Date.now();
             new World();
         }
 
@@ -238,15 +239,6 @@
                 loop();
                 const listener = new THREE.AudioListener();
                 camera.add(listener);
-
-                const audioLoader = new THREE.AudioLoader();
-                const backgroundMusic = new THREE.Audio(listener);
-                audioLoader.load('YouSeeBIGGIRLTT.mp3', function(buffer) {
-                    backgroundMusic.setBuffer(buffer);
-                    backgroundMusic.setLoop(true);
-                    backgroundMusic.setVolume(0.1);
-                    backgroundMusic.play();
-                });
                 startMusic();
             }
 
@@ -511,8 +503,7 @@
                 starField.rotation.y += 0.001;
                 chosenPositions = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
                 if (alien) {
-                    // Rotate the alien spaceship around its y-axis
-                    alien.rotation.y += 0.01; // You can adjust the rotation speed as needed
+                    alien.rotation.y += 0.01;
                 }
 
                 if (astronaut) {
@@ -532,7 +523,7 @@
                     lastPowerUpSpawnTime = currentTime; // Update last spawn time
                 }
 
-                if(currentTime - lastSpeedIncrease >= 10000){
+                if(currentTime - lastSpeedIncrease >= 20000){//a cada 30 segundos é acrescentado um obstáculo e aumentada a velocidade
                     obstacleSpeed += 5;
                     powerUpSpeed += 5;
                     powerUp
@@ -553,7 +544,7 @@
                             obstacle.position.x = spawnPositions[index].x
                         }
                         if (character) {
-                            if (character.position.distanceTo(obstacle.position) < 50) {//change number here for hitbox of obstacles
+                            if (character.position.distanceTo(obstacle.position) < 100) {//change number here for hitbox of obstacles
                                 if (obstacle.isPowerUp) {
                                     continue;
                                 } else {
@@ -581,7 +572,7 @@
                             powerUp.position.z = 1050;
                             powerUp.position.x = Math.random() * 400 - 200;
                         }
-                        if (character && character.position.distanceTo(powerUp.position) < 350) { //change number here for hitbox of powerups
+                        if (character && character.position.distanceTo(powerUp.position) < 100) { //change number here for hitbox of powerups
                             collectPowerUp(); // Call function to handle power-up collection
                             console.log('Power-up collected!');
                             console.log('Power-ups collected: ' + collectedPowerUps);
